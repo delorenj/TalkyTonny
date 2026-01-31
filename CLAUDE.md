@@ -1,5 +1,8 @@
 # CLAUDE.md
 
+> IMPORTANT!: n8n has been deprecated and replaced by NODE-Red (https://nodered.delo.sh)
+> PLEASE make necessary updated to avoid confusion
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
@@ -158,17 +161,20 @@ docker-compose up -d
 The React frontend communicates with the Rust backend via Tauri's IPC system:
 
 **Service Layer** (`TonnyTray/src/services/tauri.ts`):
+
 - Wraps all Tauri `invoke` commands
 - Type-safe wrappers for commands
 - Centralized error handling
 - Example: `startRecording()`, `stopRecording()`, `updateSettings()`
 
 **State Management** (`TonnyTray/src/hooks/useTauriState.ts`):
+
 - Uses Zustand for global state
 - Subscribes to Tauri events (`onTranscription`, `onStatusUpdate`)
 - Custom hooks for domain-specific operations
 
 **Rust Backend** (`TonnyTray/src-tauri/src/lib.rs`):
+
 - Main entry point registers all IPC command handlers
 - Modules: `state`, `process_manager`, `audio`, `websocket`, `elevenlabs`, `config`, `tray`, `database`, `keychain`, `events`
 - Thread-safe state via `Arc<Mutex<T>>`
@@ -177,6 +183,7 @@ The React frontend communicates with the Rust backend via Tauri's IPC system:
 ### TonnyTray: Process Management
 
 The Rust backend (`process_manager.rs`) manages WhisperLiveKit server lifecycle:
+
 - Spawns Python subprocess for WhisperLiveKit
 - Monitors process health
 - Auto-restart on crash (configurable)
@@ -185,6 +192,7 @@ The Rust backend (`process_manager.rs`) manages WhisperLiveKit server lifecycle:
 ### WhisperLiveKit: WebSocket Protocol
 
 Clients connect via WebSocket to receive real-time transcriptions:
+
 - Connect to `ws://localhost:8888/asr`
 - Send binary audio chunks (16kHz, 16-bit PCM)
 - Receive JSON transcription events
@@ -193,6 +201,7 @@ Clients connect via WebSocket to receive real-time transcriptions:
 ### State Synchronization
 
 TonnyTray maintains a SQLite database (`database.rs`) for:
+
 - Transcription history
 - User profiles with permissions
 - Settings persistence
@@ -203,6 +212,7 @@ Configuration stored in `~/.config/tonnytray/config.json`
 ### Security: Keychain Integration
 
 API keys (ElevenLabs, n8n) can be stored securely via system keychain (`keychain.rs`):
+
 - Linux: Secret Service API
 - macOS: Keychain Access (planned)
 - Windows: Windows Credential Manager (planned)
@@ -210,6 +220,7 @@ API keys (ElevenLabs, n8n) can be stored securely via system keychain (`keychain
 ### Log Tailer Utility
 
 TonnyTray includes a standalone log tailer (`TonnyTray/src/log-tailer.html`) for real-time log viewing:
+
 - Separate Vite build entry point
 - WebSocket-based real-time updates
 - Useful for debugging server issues
@@ -283,6 +294,7 @@ Frontend types (`TonnyTray/src/types/index.ts`) must match Rust backend types (`
 - Virtual environment: `.venv/` (auto-created by uv)
 
 Key dependencies:
+
 - fastapi, uvicorn - Web server
 - websockets - Real-time communication
 - faster-whisper - Speech recognition
@@ -292,11 +304,13 @@ Key dependencies:
 ## Important File Locations
 
 ### Configuration
+
 - TonnyTray config: `~/.config/tonnytray/config.json`
 - TonnyTray database: `~/.local/share/tonnytray/tonnytray.db`
 - Python environment: `.venv/`
 
 ### Entry Points
+
 - WhisperLiveKit server: `whisperlivekit/basic_server.py`
 - Tauri main: `TonnyTray/src-tauri/src/lib.rs`
 - React main: `TonnyTray/src/main.tsx`
@@ -304,6 +318,7 @@ Key dependencies:
 - Chrome extension: `chrome-extension/background.js`
 
 ### Build Outputs
+
 - Tauri release: `TonnyTray/target/release/bundle/`
 - Frontend build: `TonnyTray/dist/`
 - Rust debug: `TonnyTray/src-tauri/target/debug/`
@@ -350,6 +365,7 @@ Install uv: `curl -LsSf https://astral.sh/uv/install.sh | sh`
 ### Tauri Build Fails on Linux
 
 Install system dependencies:
+
 ```bash
 sudo apt install libwebkit2gtk-4.0-dev build-essential curl wget libssl-dev libgtk-3-dev
 ```
@@ -393,6 +409,7 @@ Check Tauri event listeners are registered in `useTauriState.ts`. Events must ma
 Server accessible remotely at `https://whisper.delo.sh` (configured in docker-compose.yml with Traefik labels).
 
 Connect clients to remote:
+
 ```bash
 ./bin/auto-type --remote whisper.delo.sh
 ```

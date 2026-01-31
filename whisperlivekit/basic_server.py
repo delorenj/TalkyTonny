@@ -3,11 +3,13 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from whisperlivekit import TranscriptionEngine, AudioProcessor, get_inline_ui_html, parse_args
+from whisperlivekit.bloodbank_publisher import BloodbankPublisher
 import asyncio
 import logging
 from starlette.staticfiles import StaticFiles
 import pathlib
 import whisperlivekit.web as webpkg
+from uuid import uuid4
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logging.getLogger().setLevel(logging.WARNING)
@@ -16,10 +18,11 @@ logger.setLevel(logging.DEBUG)
 
 args = parse_args()
 transcription_engine = None
+bloodbank_publisher = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    
+
     #to remove after 0.2.8
     if args.backend == "simulstreaming" and not args.disable_fast_encoder:
         logger.warning(f"""
@@ -27,11 +30,27 @@ async def lifespan(app: FastAPI):
 WhisperLiveKit 0.2.8 has introduced a new fast encoder feature using MLX Whisper or Faster Whisper for improved speed. Use --disable-fast-encoder to disable if you encounter issues.
 {'='*50}
     """)
-    
-    global transcription_engine
+
+    global transcription_engine, bloodbank_publisher
     transcription_engine = TranscriptionEngine(
         **vars(args),
     )
+
+    # Initialize Bloodbank publisher
+    bloodbank_publisher = BloodbankPublisher(
+        max_retries=3,
+        retry_delay=1.0,
+        enable_wal=True,
+    )
+    logger.info("Bloodbank publisher initialized")
+
+    # Check bb availability at startup
+    bb_available = await bloodbank_publisher.check_bb_available()
+    if bb_available:
+        logger.info("Bloodbank CLI (bb) is available - event publishing enabled")
+    else:
+        logger.warning("Bloodbank CLI (bb) not available - events will be saved to WAL only")
+
     yield
 
 app = FastAPI(lifespan=lifespan)
@@ -66,13 +85,25 @@ async def handle_websocket_results(websocket, results_generator):
 
 @app.websocket("/asr")
 async def websocket_endpoint(websocket: WebSocket):
-    global transcription_engine
+    global transcription_engine, bloodbank_publisher
+
+    # Generate unique session ID for this WebSocket connection
+    session_id = uuid4()
+    logger.info(f"WebSocket connection opened with session_id={session_id}")
+
+    # Send session ID to client in handshake
+    await websocket.accept()
+    await websocket.send_json({
+        "type": "session_info",
+        "session_id": str(session_id)
+    })
+
     audio_processor = AudioProcessor(
         transcription_engine=transcription_engine,
+        session_id=session_id,
+        bloodbank_publisher=bloodbank_publisher,
     )
-    await websocket.accept()
-    logger.info("WebSocket connection opened.")
-            
+
     results_generator = await audio_processor.create_tasks()
     websocket_task = asyncio.create_task(handle_websocket_results(websocket, results_generator))
 

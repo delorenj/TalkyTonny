@@ -4,6 +4,8 @@ from time import time, sleep
 import math
 import logging
 import traceback
+from uuid import UUID, uuid4
+from typing import Optional
 from whisperlivekit.timed_objects import ASRToken, Silence
 from whisperlivekit.core import TranscriptionEngine, online_factory, online_diarization_factory
 from whisperlivekit.ffmpeg_manager import FFmpegManager, FFmpegState
@@ -24,12 +26,16 @@ class AudioProcessor:
     
     def __init__(self, **kwargs):
         """Initialize the audio processor with configuration, models, and state."""
-        
+
         if 'transcription_engine' in kwargs and isinstance(kwargs['transcription_engine'], TranscriptionEngine):
             models = kwargs['transcription_engine']
         else:
             models = TranscriptionEngine(**kwargs)
-        
+
+        # Session tracking
+        self.session_id = kwargs.get('session_id', uuid4())
+        self.bloodbank_publisher = kwargs.get('bloodbank_publisher')
+
         # Audio processing settings
         self.args = models.args
         self.sample_rate = 16000
@@ -355,14 +361,14 @@ class AudioProcessor:
 
                 if new_tokens:
                     candidate_end_times.append(new_tokens[-1].end)
-                
+
                 if _buffer_transcript_obj.end is not None:
                     candidate_end_times.append(_buffer_transcript_obj.end)
-                
+
                 candidate_end_times.append(current_audio_processed_upto)
-                
+
                 new_end_buffer = max(candidate_end_times)
-                
+
                 await self.update_transcription(
                     new_tokens, buffer_text, new_end_buffer, self.sep
                 )
@@ -385,6 +391,36 @@ class AudioProcessor:
                             ", ".join(t.text for t in new_tokens),
                         )
                     self.transcription_last_log = now
+
+                # Publish transcription event to Bloodbank when new tokens are finalized
+                if new_tokens and self.bloodbank_publisher:
+                    # Combine all new tokens into finalized text
+                    finalized_text = self.sep.join([t.text for t in new_tokens])
+
+                    # Build audio metadata
+                    audio_metadata = {
+                        "duration_seconds": duration_this_chunk,
+                        "sample_rate": self.sample_rate,
+                        "model": self.args.model,
+                    }
+
+                    # Add language if available
+                    if hasattr(self.args, 'lan') and self.args.lan != 'auto':
+                        audio_metadata["language"] = self.args.lan
+
+                    # Add speaker info if diarization is enabled
+                    if self.args.diarization and new_tokens[0].speaker != -1:
+                        audio_metadata["speaker_id"] = str(new_tokens[0].speaker)
+
+                    # Publish event (non-blocking)
+                    asyncio.create_task(
+                        self.bloodbank_publisher.publish_transcription(
+                            text=finalized_text,
+                            session_id=self.session_id,
+                            source="whisperlivekit",
+                            audio_metadata=audio_metadata,
+                        )
+                    )
 
                 self.transcription_queue.task_done()
                 
