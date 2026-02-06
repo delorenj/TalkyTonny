@@ -1,10 +1,11 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # WhisperLiveKit Server Startup Script
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$ROOT_DIR"
 
 LOG_FILE="$SCRIPT_DIR/whisper.log"
 PID_FILE="$SCRIPT_DIR/whisper.pid"
@@ -25,8 +26,8 @@ fi
 echo "[Starting] WhisperLiveKit Server"
 echo "[Log] $LOG_FILE"
 
-# Start server in background
-CUDA_VISIBLE_DEVICES="" nohup uv run whisperlivekit-server \
+# Start server in background (mise-managed uv)
+CUDA_VISIBLE_DEVICES="" nohup mise x -- uv run whisperlivekit-server \
 	--model base \
 	--language en \
 	--host 0.0.0.0 \

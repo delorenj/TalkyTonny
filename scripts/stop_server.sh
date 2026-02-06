@@ -1,5 +1,7 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Stop WhisperLiveKit Server
+
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PID_FILE="$SCRIPT_DIR/whisper.pid"

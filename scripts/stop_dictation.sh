@@ -1,7 +1,8 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Stop WhisperLiveKit dictation system
 
-cd "$(dirname "$0")"
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "[Dictation] Stopping system..."
 
@@ -9,6 +10,6 @@ echo "[Dictation] Stopping system..."
 pkill -f "auto_type_client.py" 2>/dev/null || true
 
 # Stop server
-./stop_server.sh
+"$SCRIPT_DIR/stop_server.sh" || true
 
 echo "[Dictation] Stopped"
